@@ -1,10 +1,10 @@
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import socket
+import sys
 
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        hostname = socket.gethostname()
-        message = f"Hello from server : {hostname}"
+        server_id = sys.argv[1]
+        message = f"Hello from server : {server_id}"
         
         self.send_response(200)
         self.send_header("Content-Type", "text/plain")
@@ -15,8 +15,11 @@ class SimpleHandler(BaseHTTPRequestHandler):
 
 def run(port):
     server = HTTPServer(("localhost", port), SimpleHandler)
-    print(f"Server running on port {port}")
+    print(f"Backend Server running on port {port}")
     server.serve_forever()
 
 if __name__ == "__main__":
-    run(8001)
+
+    port = int(sys.argv[2])
+
+    run(port)
