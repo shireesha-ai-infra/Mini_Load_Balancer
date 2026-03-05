@@ -3,6 +3,11 @@ import sys
 
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
+        if self.path == "/health":
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"OK")
+            return
         server_id = sys.argv[1]
         message = f"Hello from server : {server_id}"
         
