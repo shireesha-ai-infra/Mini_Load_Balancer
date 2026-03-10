@@ -2,6 +2,7 @@ import asyncio
 import aiohttp
 from aiohttp import web
 import time
+import json
 
 # ---------------- METRICS ---------------- #
 
@@ -14,17 +15,48 @@ request_latency_total = 0
 
 # ---------------- BACKEND INFO ---------------- #
 
-BACKEND_SERVERS = [
-    "http://localhost:8001",
-    "http://localhost:8002",
-    "http://localhost:8003"
-]
+BACKEND_SERVERS = []
 
 for server in BACKEND_SERVERS:
     server_requests[server] = 0
 
 healthy_servers = []
 current_server = 0
+
+# ---------------- LOAD REGISTRY ---------------- #
+
+def load_registry():
+    try:
+        with open("registry.json") as f:
+            data = json.load(f)
+        
+        servers = []
+        for server in data["servers"]:
+            url = f"http://localhost:{server['port']}"
+            servers.append(url)
+
+        return servers
+    except:
+        return []
+    
+# ---------------- REGISTRY MONITOR TASK ---------------- #
+
+async def registry_watcher():
+    global BACKEND_SERVERS
+
+    while True:
+        servers = load_registry()
+
+        if servers != BACKEND_SERVERS:
+            print("Registry updated:", servers)
+            BACKEND_SERVERS[:] = servers
+
+        for server in servers:
+            if server not in server_requests:
+                server_requests[server] = 0
+
+        await asyncio.sleep(5)
+
 
 # ---------------- HEALTH CHECK ---------------- #
 
@@ -116,11 +148,15 @@ async def handle_request(request):
 
 async def start_background_tasks(app):
     app['health_task'] = asyncio.create_task(health_check())
+    app['registry_task'] = asyncio.create_task(registry_watcher())
 
 
 async def cleanup_background_tasks(app):
     app['health_task'].cancel()
+    app['registry_task'].cancel()
+
     await app['health_task']
+    await app['registry_task']
 
 # ---------------- APPLICATION SETUP ---------------- #
 

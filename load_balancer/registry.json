@@ -1,0 +1,6 @@
+{
+  "servers": [
+    {"id": "server3", "port": 8003},
+    {"id": "server4", "port": 8004}
+  ]
+}

@@ -1,6 +1,7 @@
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import sys
 
+
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/health":
