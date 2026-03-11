@@ -43,14 +43,28 @@ The repository is structured to show the evolution of a load balancer:
 
 ```mermaid
 graph TD
-    Client([Client Requests]) -->|HTTP| AsyncLB[Async Load Balancer]
-    AsyncLB -->|/metrics| AutoScaler[Auto Scaler]
-    AutoScaler -->|Reads/Writes| Registry[(registry.json)]
-    ServiceManager[Service Manager] -->|Watches| Registry
-    ServiceManager -->|Spawns/Kills| Server1[(Backend Server 1)]
-    ServiceManager -->|Spawns/Kills| ServerN[(Backend Server N)]
-    AsyncLB -->|Routes Traffic| Server1
-    AsyncLB -->|Routes Traffic| ServerN
+    Client([Client<br>Requests]) -->|HTTP| AsyncLB[Async<br>Load Balancer]
+
+    subgraph Control Plane
+        AutoScaler[Auto<br>Scaler]
+        Registry[(registry.json)]
+        ServiceManager[Service<br>Manager]
+    end
+
+    subgraph Backend Servers
+        Server1[(Backend<br>Server 1)]
+        ServerN[(Backend<br>Server N)]
+    end
+
+    AsyncLB -.->|/metrics| AutoScaler
+    AutoScaler -->|Reads / Writes| Registry
+    ServiceManager -->|Watches| Registry
+
+    ServiceManager -.->|Spawns / Kills| Server1
+    ServiceManager -.->|Spawns / Kills| ServerN
+
+    AsyncLB ===>|Routes Traffic| Server1
+    AsyncLB ===>|Routes Traffic| ServerN
 ```
 
 ---
