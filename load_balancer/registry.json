@@ -1,7 +1,6 @@
 {
   "servers": [
     {"id": "server1", "port": 8001},
-    {"id": "server2", "port": 8002},
     {"id": "server3", "port": 8003}
   ]
 }

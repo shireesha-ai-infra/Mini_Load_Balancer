@@ -3,6 +3,7 @@ import aiohttp
 from aiohttp import web
 import time
 import json
+from collections import defaultdict
 
 # ---------------- METRICS ---------------- #
 
@@ -13,12 +14,18 @@ server_requests = {}
 
 request_latency_total = 0
 
+# ---------------- RATE LIMITING ---------------- #
+
+RATE_LIMIT = 10  # max requests per second per client
+client_requests = defaultdict(list)
+
+# ---------------- RETRY CONFIG ---------------- #
+
+MAX_RETRIES = 2
+
 # ---------------- BACKEND INFO ---------------- #
 
 BACKEND_SERVERS = []
-
-for server in BACKEND_SERVERS:
-    server_requests[server] = 0
 
 healthy_servers = []
 current_server = 0
@@ -36,7 +43,8 @@ def load_registry():
             servers.append(url)
 
         return servers
-    except:
+    except Exception as e:
+        print("Registry Load Error : ", e)
         return []
     
 # ---------------- REGISTRY MONITOR TASK ---------------- #
@@ -79,6 +87,22 @@ async def health_check():
 
 # ---------------- METRICS ENDPOINT ---------------- #
 
+def rate_limited(client_ip):
+    now = time.time()
+    timestamps = client_requests[client_ip]
+
+    # keeping only last 1 second
+    client_requests[client_ip] = [t for t in timestamps if now - t < 1]
+
+    if len(client_requests[client_ip]) >= RATE_LIMIT:
+        return True
+    
+    client_requests[client_ip].append(now)
+    return False
+
+
+# ---------------- METRICS ENDPOINT ---------------- #
+
 async def metrics_handler(request):
     avg_latency = 0
 
@@ -112,41 +136,50 @@ async def handle_request(request):
 
     if request.path == "/favicon.ico":
         return web.Response(status=204)
+    
+    client_ip = request.remote
+
+    # rate limiting
+    if rate_limited(client_ip):
+        return web.Response(status=429, text="Too Many Requests")
 
     if not healthy_servers:
         return web.Response(status=503, text="No healthy servers")
-
-    backend = healthy_servers[current_server % len(healthy_servers)]
-    current_server += 1
-
-    backend_url = backend + request.path
-
-    server_requests[backend] += 1
-
-    print("Forwarding request to:", backend)
-
+    
     start_time = time.time()
-
     async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(backend_url) as resp:
-                body = await resp.read()
+        for attempt in range(MAX_RETRIES + 1):
+            backend = healthy_servers[current_server % len(healthy_servers)]
+            current_server += 1
 
-                latency = time.time() - start_time
-                request_latency_total += latency
+            backend_url = backend + request.path
+            print(f"Attempt {attempt + 1}: forwarding to {backend}")
+            
+            try:
+                async with session.get(backend_url) as resp:
+                    body = await resp.read()
 
-                return web.Response(
-                    status=resp.status,
-                    body=body,
-                    headers=resp.headers
-                )
-        except:
-            requests_failed += 1
-            return web.Response(status=502, text="Backend error")
+                    latency = time.time() - start_time
+                    request_latency_total += latency
+
+                    return web.Response(
+                        status=resp.status,
+                        body=body,
+                        headers=resp.headers
+                    )
+            except Exception as e:
+                print(f"Retry {attempt+1} failed on {backend}: {e}")
+                continue
+    requests_failed += 1
+    return web.Response(
+        status=502, 
+        text="Backend error"
+    )
 
 # ---------------- BACKGROUND TASKS ---------------- #
 
 async def start_background_tasks(app):
+    BACKEND_SERVERS[:] = load_registry()
     app['health_task'] = asyncio.create_task(health_check())
     app['registry_task'] = asyncio.create_task(registry_watcher())
 
