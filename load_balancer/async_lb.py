@@ -111,12 +111,12 @@ async def metrics_handler(request):
 
     metrics = []
 
-    metrics.append(f"requests_total : {requests_total}")
-    metrics.append(f"requests failed : {requests_failed}")
-    metrics.append(f"request_latency_avg : {avg_latency}")
+    metrics.append(f"requests_total {requests_total}")
+    metrics.append(f"requests failed {requests_failed}")
+    metrics.append(f"request_latency_avg {avg_latency}")
 
     for server, count in server_requests.items():
-        metrics.append(f'server_requests{{server = "{server}"}} : {count}')
+        metrics.append(f'server_requests{{server = "{server}"}} {count}')
 
     return web.Response(
         text="\n".join(metrics),
